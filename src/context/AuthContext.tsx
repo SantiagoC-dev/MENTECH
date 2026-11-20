@@ -1,7 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { browserLocalPersistence, browserSessionPersistence, createUserWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail, setPersistence, signInWithEmailAndPassword, signOut, updateProfile } from 'firebase/auth';
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signOut,
+  updateProfile
+} from 'firebase/auth';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { auth, db, firebaseProjectId } from '../lib/firebase';
 import { endSession, formatFirebaseError, startFirebaseSession, watchOwnSession } from '../lib/repository';
 import type { Profile, Role, Specialist } from '../types';
 
@@ -11,7 +18,7 @@ interface AuthValue {
   error:string|null;
   sessionId:string|null;
   hasFirebaseUser:boolean;
-  login:(email:string,password:string,remember:boolean)=>Promise<void>;
+  login:(email:string,password:string)=>Promise<void>;
   register:(name:string,email:string,password:string,role:'patient'|'professional')=>Promise<void>;
   logout:()=>Promise<void>;
   requestReset:(email:string)=>Promise<void>;
@@ -25,9 +32,12 @@ export function userError(e:unknown) {
   if(raw.includes('auth/invalid-email'))return 'El correo electrónico no es válido.';
   if(raw.includes('auth/invalid-credential')||raw.includes('auth/wrong-password')||raw.includes('auth/user-not-found'))return 'Correo o contraseña incorrectos.';
   if(raw.includes('auth/weak-password'))return 'Usa una contraseña de al menos 8 caracteres.';
-  if(raw.includes('auth/too-many-requests'))return 'Demasiados intentos. Intenta de nuevo más tarde.';
   if(raw.includes('auth/network-request-failed'))return 'No se pudo conectar a Firebase. Revisa tu conexión.';
-  if(raw.includes('auth/unauthorized-domain'))return 'Este dominio no está autorizado en Firebase Authentication.';
+  if(raw.includes('auth/unauthorized-domain')||raw.includes('auth/unauthorized-continue-uri'))return 'Este dominio de Vercel no está autorizado para recuperar contraseñas. Agrégalo en Firebase Authentication > Configuración > Dominios autorizados.';
+  if(raw.includes('auth/invalid-continue-uri')||raw.includes('auth/missing-continue-uri'))return 'La URL de retorno para recuperar la contraseña no es válida. Revisa el dominio de Vercel.';
+  if(raw.includes('auth/quota-exceeded')||raw.includes('auth/too-many-requests'))return 'Se alcanzó un límite temporal de solicitudes de Firebase. Intenta más tarde; revisa las cuotas de Authentication.';
+  if(raw.includes('auth/operation-not-allowed'))return 'La recuperación por correo no está habilitada en Firebase Authentication.';
+  if(raw.includes('auth/invalid-api-key')||raw.includes('auth/app-not-authorized'))return 'La configuración del proyecto Firebase no coincide con este sitio. Revisa VITE_FIREBASE_* en Vercel.';
   return raw;
 }
 
@@ -114,10 +124,9 @@ export function AuthProvider({children}:{children:ReactNode}){
     },message=>setError(message));
   },[sessionId,user?.id]);
 
-  const login=async(email:string,password:string,remember:boolean)=>{
+  const login=async(email:string,password:string)=>{
     setError(null);
     try{
-      await setPersistence(auth,remember?browserLocalPersistence:browserSessionPersistence);
       await signInWithEmailAndPassword(auth,email.trim().toLowerCase(),password);
       // onAuthStateChanged y onSnapshot actualizan el estado y redirigen sin reload.
     }catch(e){throw new Error(userError(e));}
@@ -128,7 +137,6 @@ export function AuthProvider({children}:{children:ReactNode}){
     if(password.length<8)throw new Error('La contraseña debe tener al menos 8 caracteres.');
     registrationInProgress.current=true;
     try{
-      await setPersistence(auth,browserSessionPersistence);
       const credential=await createUserWithEmailAndPassword(auth,email.trim().toLowerCase(),password);
       const account=credential.user;
       await updateProfile(account,{displayName:fullName});
@@ -146,8 +154,23 @@ export function AuthProvider({children}:{children:ReactNode}){
     }catch(e){registrationInProgress.current=false;setLoading(false);throw new Error(userError(e));}
   };
   const requestReset=async(email:string)=>{
-    try{await sendPasswordResetEmail(auth,email.trim().toLowerCase());}
-    catch(e){throw new Error(userError(e));}
+    // El dominio donde se solicita la recuperación debe estar autorizado
+    // en Firebase Authentication. El enlace devuelve al login de ese dominio.
+    const continueUrl = `${window.location.origin}/login`;
+    try {
+      await sendPasswordResetEmail(auth,email.trim().toLowerCase(),{
+        url: continueUrl,
+        handleCodeInApp: false,
+      });
+    } catch (e) {
+      // No registrar correos electrónicos ni tokens en los logs de producción.
+      const code = typeof e === 'object' && e !== null && 'code' in e
+        ? String(e.code) : 'sin-codigo';
+      console.error('[MENTECH] Falló solicitud de recuperación:', {
+        code, projectId: firebaseProjectId, domain: window.location.hostname,
+      });
+      throw new Error(userError(e));
+    }
   };
   return <AuthContext.Provider value={{user,loading,error,sessionId,hasFirebaseUser,login,register,logout,requestReset}}>{children}</AuthContext.Provider>;
 }

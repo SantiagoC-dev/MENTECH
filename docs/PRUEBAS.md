@@ -31,3 +31,15 @@ Las pruebas siguientes usan **Firebase real**. Realízalas desde Chrome y Edge, 
 - Captura del correo real de recuperación (oculta información privada).
 - Dos navegadores abiertos mostrando multisesiones.
 - Captura de cambios de estado de cita en tiempo real.
+
+
+## Pruebas de sesión por pestaña y correo en Vercel
+
+1. Publica el commit actualizado en Vercel. Cierra **todas** las pestañas antiguas de MENTECH y abre pestañas nuevas.
+2. En pestaña A, autentica **paciente**. En pestaña B, autentica **profesional**. En pestaña C, autentica **administrador**.
+3. Actualiza F5 en A, B y C: cada una debe conservar **su propio usuario y su propio dashboard**.
+4. Abre `/sesiones` con la misma cuenta en Chrome y Edge para comprobar dos sesiones Firestore de ese usuario.
+5. En una pestaña sin sesión, abre `/recuperar`; introduce un correo de una cuenta existente en **Authentication** del proyecto `mentech-escolar`.
+6. Abre F12 → Red/Network y comprueba la operación `sendOobCode`: HTTP 200 significa solicitud aceptada, **no entrega confirmada**. Los errores 400/403/429 deben interpretarse según el código que muestre Firebase.
+7. Autoriza el dominio exacto de Vercel en Authentication → Configuración → Dominios autorizados, para que la URL de retorno `/login` sea válida.
+8. Comprueba plantillas y carpeta de spam. Si Firebase acepta la solicitud pero no llega el correo, **no lo presentes como prueba aprobada**.

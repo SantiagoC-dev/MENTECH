@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { browserSessionPersistence, getAuth, initializeAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 /** Identificadores públicos de la app web MENTECH (no son credenciales de servicio).
@@ -15,6 +15,18 @@ const config = {
 };
 
 export const app = getApps().length ? getApp() : initializeApp(config);
-export const auth = getAuth(app);
+// PERSISTENCIA POR PESTAÑA: cada pestaña puede tener un usuario distinto
+// y su sesión permanece tras F5. No sincroniza un usuario entre pestañas.
+// Eliminar persistencia local de Firebase NO elimina datos de Firestore.
+export const auth = (() => {
+  try {
+    return initializeAuth(app, { persistence: browserSessionPersistence });
+  } catch (error) {
+    // Evita un error al recargar el módulo mediante HMR en Vite.
+    if (typeof error === 'object' && error !== null && 'code' in error
+      && error.code === 'auth/already-initialized') return getAuth(app);
+    throw error;
+  }
+})();
 export const db = getFirestore(app);
 export const firebaseProjectId = config.projectId;

@@ -97,7 +97,7 @@ Usa **tres correos diferentes a los que tengas acceso** y contraseñas de prueba
 - `appointments`: citas creadas por pacientes, visibles para cada parte de acuerdo con su UID.
 - `sessions`: sesiones de navegador registradas en Firestore, observadas en tiempo real.
 
-No hay perfiles de muestra, contraseñas preestablecidas, almacenamiento local de cuentas ni modo fuera de línea. `sessionStorage` guarda **únicamente un identificador aleatorio de sesión por pestaña** para identificarla en Firestore; **no guarda pacientes ni citas**, y Firebase administra la persistencia de autenticación según «Mantener mi sesión iniciada».
+No hay perfiles de muestra, contraseñas preestablecidas, almacenamiento local de cuentas ni modo fuera de línea. `sessionStorage` mantiene el identificador aleatorio de la sesión Firestore y Firebase Authentication conserva el acceso de cada pestaña hasta que se cierre; **no almacena pacientes ni citas como datos de demostración**.
 
 ## 7. Comandos de control
 
@@ -146,7 +146,7 @@ MENTECH es un **proyecto escolar** de conexión entre pacientes y perfiles profe
 
 ## Nota de corrección — navegación tras iniciar sesión (20 nov 2026)
 
-En la versión anterior, si el registro de la sesión en la colección `sessions` fallaba
+En una versión anterior, si el registro de la sesión en la colección `sessions` fallaba
 (por ejemplo, por reglas de seguridad antiguas), `AuthContext.tsx` cerraba
 automáticamente Firebase Authentication y el usuario regresaba a `/login`.
 Ahora el login válido **no se revierte por un fallo secundario**: se muestra un
@@ -165,3 +165,49 @@ Si después de la corrección no puedes entrar, verifica en este orden:
 
 Los documentos `users` no equivalen a cuentas en Firebase Authentication: tienen
 que existir **ambos** registros.
+
+
+## Corrección de sesiones independientes y recuperación en Vercel (19 nov 2026)
+
+### 1. Cuenta diferente en cada pestaña
+
+Esta versión usa **`initializeAuth(app, { persistence: browserSessionPersistence })`** desde el arranque. Antes, la casilla «Mantener mi sesión iniciada» estaba marcada por defecto y cambiaba a `browserLocalPersistence`, lo cual sincroniza el mismo usuario entre pestañas del mismo perfil de navegador. Eso no es adecuado para mostrar varios roles simultáneos en una exposición.
+
+- Pestaña A: entra como **paciente**; se mantiene tras F5.
+- Pestaña B: entra como **profesional**; se mantiene tras F5.
+- Pestaña C: entra como **administrador**; se mantiene tras F5.
+- En Chrome, Edge u otros navegadores estas sesiones también son independientes.
+- Cerrar la pestaña finaliza su persistencia local de Firebase; en Firestore puede quedar un registro histórico de sesión hasta que se marque como finalizado. **La colección `sessions` es un registro académico, no un sistema infalible de revocación de tokens.**
+
+**Migración necesaria tras desplegar:** cierra las pestañas antiguas abiertas de MENTECH (con persistencia `local`) y **vuelve a iniciar sesión una vez en cada pestaña** con la nueva versión. Un inicio de sesión antiguo no se migra automáticamente a una sesión distinta por pestaña. La misma ventana de incógnito y otras ventanas de incógnito pueden compartir almacenamiento `local` previo: inicia de cero tras publicar.
+
+### 2. Recuperar contraseña desde la web publicada
+
+`sendPasswordResetEmail()` ahora utiliza un `continueUrl` construido desde el dominio real, por ejemplo `https://TU-PROYECTO.vercel.app/login`. **Para que no falle por `auth/unauthorized-continue-uri`,** abre Firebase Console → Authentication → Configuración → Dominios autorizados y añade el dominio concreto de **producción** (sin `https://` ni rutas). Las URLs de Preview de Vercel pueden usar otros dominios y deben autorizarse individualmente si las pruebas allí.
+
+Además comprueba en Firebase Console → Authentication → Usuarios que el correo destinatario realmente exista como cuenta con contraseña dentro de **`mentech-escolar`**. Comprueba Authentication → Plantillas → Restablecer contraseña, remitente y carpeta de spam. Si está habilitada la protección contra enumeración, Firebase puede aceptar la solicitud de un correo inexistente **sin enviar un mensaje**. Un resultado de éxito significa que aceptó la solicitud, **no que entregó el correo**.
+
+En el navegador Vercel, pulsa F12 → **Network/Red** → filtra `sendOobCode` → solicita la recuperación:
+
+- HTTP **200**: solicitud aceptada; revisa correo, proyecto, plantillas, spam y posibles límites.
+- HTTP **400/403**: revisa el código del error. El formulario ofrece mensajes específicos para dominios no autorizados, configuración incorrecta y solicitudes inválidas.
+- HTTP **429**: revisa límites de envío de Firebase (pueden variar por plan).
+
+No compartas capturas de un enlace de restablecimiento con tokens o contraseñas. No añadas reglas públicas en Firestore para resolver un problema de envío de email, porque **no intervienen en Firebase Authentication**.
+
+### 3. Publicar la actualización
+
+```powershell
+npm install
+npm run check
+npm run test:smoke
+npm run test:sessions
+npm run test:auth
+npm run build
+
+git add .
+git commit -m "fix: sesiones por pestaña y diagnostico de recuperacion Vercel"
+git push origin main
+```
+
+Tras el nuevo despliegue, verifica que Vercel muestre el commit correspondiente en Production. Para probar el nuevo sistema, abre nuevas pestañas después de cerrar las anteriores y vuelve a iniciar sesión.

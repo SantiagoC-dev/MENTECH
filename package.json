@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "check": "tsc --noEmit -p tsconfig.app.json",
     "test:smoke": "node scripts/check-project.mjs",
-    "test:sessions": "node scripts/test-session-flow.mjs"
+    "test:sessions": "node scripts/test-session-flow.mjs",
+    "test:auth": "node scripts/check-auth-deployment.mjs"
   },
   "dependencies": {
     "firebase": "^12.6.0",
@@ -27,5 +28,8 @@
     "tailwindcss": "^4.1.0",
     "typescript": "^5.9.0",
     "vite": "^7.1.0"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "1.13.6"
   }
 }
