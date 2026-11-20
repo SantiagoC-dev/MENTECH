@@ -1,0 +1,17 @@
+import { useState, type ReactNode } from 'react';
+import { CalendarDays, CheckCircle2, Clock3, CircleAlert, ShieldCheck, Star, MapPin, ArrowUpRight, X } from 'lucide-react';
+import type { Appointment, Specialist, Status } from '../types';
+import { displayDate, money } from '../lib/catalog';
+
+export function Avatar({person,size='normal'}:{person:Pick<Specialist,'initials'|'color'>,size?:'normal'|'large'}) { return <div aria-hidden="true" className={`avatar avatar-${person.color} ${size==='large'?'avatar-large':''}`}><span>{person.initials}</span><i/></div>; }
+export function StatusPill({status}:{status:Status}){const labels:Record<Status,string>={pendiente:'Pendiente',confirmada:'Confirmada',completada:'Completada',cancelada:'Cancelada'};return <span className={`status status-${status}`}>{status==='pendiente'?<Clock3 size={13}/>:status==='confirmada'?<CheckCircle2 size={13}/>:status==='cancelada'?<CircleAlert size={13}/>:<CheckCircle2 size={13}/>} {labels[status]}</span>;}
+export function Banner({message,kind='info',onClose}:{message:string,kind?:'info'|'success'|'error',onClose?:()=>void}) {return <div role={kind==='error'?'alert':'status'} className={`banner banner-${kind}`}><span>{kind==='success'?<CheckCircle2 size={18}/>:<CircleAlert size={18}/>}</span><p>{message}</p>{onClose&&<button className="icon-button" onClick={onClose} aria-label="Cerrar aviso"><X size={16}/></button>}</div>;}
+export function SpecialistCard({pro,onChoose}:{pro:Specialist,onChoose:(p:Specialist)=>void}) {return <article className="specialist-card">
+  <div className="pro-head"><Avatar person={pro} size="large"/><div className="pro-head-info"><span className="pro-tag">{pro.verified?'Perfil verificado':'Pendiente de revisión'}</span><h3>{pro.name}</h3><p>{pro.specialty}</p></div></div>
+  <p className="pro-bio">{pro.bio}</p>
+  <div className="pro-meta"><span><Star size={15} fill="currentColor"/> {pro.years} años exp.</span><span><MapPin size={15}/> En línea</span>{pro.verified&&<span><ShieldCheck size={15}/> Verificado</span>}</div>
+  <div className="pro-bottom"><div><small>Sesión desde</small><strong>{money(pro.fee)}</strong></div><button className="btn btn-primary btn-small" onClick={()=>onChoose(pro)}>Solicitar cita <ArrowUpRight size={16}/></button></div>
+</article>;}
+export function AppointmentRow({appointment:a,action,actionLabel}:{appointment:Appointment,action?:(a:Appointment)=>void,actionLabel?:string}){return <div className="appointment-row"><div className="appointment-icon"><CalendarDays size={21}/></div><div className="appointment-info"><strong>{a.professionalName}</strong><small>{a.topic} · {displayDate(a.date)} · {a.time}</small><span className="appointment-patient">Paciente: {a.patientName}</span></div><div className="appointment-side"><StatusPill status={a.status}/>{action&&actionLabel&&<button className="text-button" onClick={()=>action(a)}>{actionLabel}</button>}</div></div>;}
+export function Stat({label,value,sub,icon}:{label:string,value:string|number,sub:string,icon:ReactNode}){return <div className="stat-card"><div className="stat-icon">{icon}</div><span>{label}</span><strong>{value}</strong><small>{sub}</small></div>;}
+export function useFeedback(){const [feedback,setFeedback]=useState<{message:string;kind:'success'|'error'}|null>(null);return {feedback,success:(message:string)=>setFeedback({message,kind:'success'}),failure:(error:unknown)=>setFeedback({message:error instanceof Error?error.message:String(error),kind:'error'}),clear:()=>setFeedback(null)};}

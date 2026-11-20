@@ -1,0 +1,104 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
+    function userPath() { return /databases/$(database)/documents/users/$(me()); }
+    function role() {
+      return signedIn() && exists(userPath()) ? get(userPath()).data.role : 'none';
+    }
+    function admin() { return role() == 'admin'; }
+    function proPath(uid) { return /databases/$(database)/documents/professionals/$(uid); }
+    function userNameValid() { return request.resource.data.name is string && request.resource.data.name.size() >= 3 && request.resource.data.name.size() <= 100; }
+
+    match /users/{uid} {
+      allow create: if signedIn() && me() == uid
+        && request.resource.data.keys().hasOnly(['id','name','email','role','createdAt'])
+        && request.resource.data.keys().hasAll(['id','name','email','role','createdAt'])
+        && request.resource.data.id == uid
+        && request.resource.data.email == request.auth.token.email
+        && userNameValid()
+        && request.resource.data.role in ['patient','professional']
+        && request.resource.data.createdAt is string;
+      allow get: if signedIn() && (me() == uid || admin());
+      allow list: if admin();
+      allow update: if signedIn() && me() == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
+        && userNameValid();
+      allow delete: if false;
+    }
+
+    match /professionals/{id} {
+      // Las consultas públicas DEBEN incluir where('verified','==',true).
+      allow get, list: if resource.data.verified == true
+        || admin() || (signedIn() && resource.data.ownerId == me());
+      allow create: if signedIn() && me() == id && role() == 'professional'
+        && request.resource.data.keys().hasOnly(['id','ownerId','name','specialty','bio','fee','years','verified','featured','initials','color'])
+        && request.resource.data.keys().hasAll(['id','ownerId','name','specialty','bio','fee','years','verified','featured','initials','color'])
+        && request.resource.data.ownerId == me()
+        && request.resource.data.id == id
+        && request.resource.data.verified == false
+        && request.resource.data.featured == false
+        && request.resource.data.fee is number && request.resource.data.fee >= 0 && request.resource.data.fee <= 10000
+        && request.resource.data.years is number && request.resource.data.years >= 0 && request.resource.data.years <= 60;
+      allow update: if (signedIn() && role() == 'professional'
+          && resource.data.ownerId == me()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','specialty','bio','fee','years'])
+          && request.resource.data.specialty is string && request.resource.data.specialty.size() <= 80
+          && request.resource.data.bio is string && request.resource.data.bio.size() <= 500
+          && request.resource.data.fee is number && request.resource.data.fee >= 0 && request.resource.data.fee <= 10000
+          && request.resource.data.years is number && request.resource.data.years >= 0 && request.resource.data.years <= 60)
+        || (admin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verified'])
+          && request.resource.data.verified is bool
+          && (request.resource.data.verified == false || resource.data.fee > 0));
+      allow delete: if false;
+    }
+
+    match /appointments/{id} {
+      allow create: if signedIn() && role() == 'patient'
+        && request.resource.data.keys().hasOnly(['patientId','patientName','professionalId','professionalName','topic','date','time','fee','status','createdAt'])
+        && request.resource.data.keys().hasAll(['patientId','patientName','professionalId','professionalName','topic','date','time','fee','status','createdAt'])
+        && request.resource.data.patientId == me()
+        && request.resource.data.patientName == get(userPath()).data.name
+        && request.resource.data.professionalId is string
+        && exists(proPath(request.resource.data.professionalId))
+        && get(proPath(request.resource.data.professionalId)).data.verified == true
+        && request.resource.data.professionalName == get(proPath(request.resource.data.professionalId)).data.name
+        && request.resource.data.fee == get(proPath(request.resource.data.professionalId)).data.fee
+        && request.resource.data.topic is string && request.resource.data.topic.size() > 0 && request.resource.data.topic.size() <= 100
+        && request.resource.data.date is string && request.resource.data.date.size() == 10
+        && request.resource.data.time is string && request.resource.data.time.size() == 5
+        && request.resource.data.status == 'pendiente';
+      // La consulta debe filtrar por patientId o professionalId excepto admin.
+      allow get, list: if signedIn()
+        && (admin() || resource.data.patientId == me() || resource.data.professionalId == me());
+      allow update: if signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && ((role() == 'patient' && resource.data.patientId == me()
+              && resource.data.status in ['pendiente','confirmada']
+              && request.resource.data.status == 'cancelada')
+          || (role() == 'professional' && resource.data.professionalId == me()
+              && ((resource.data.status == 'pendiente' && request.resource.data.status in ['confirmada','cancelada'])
+                || (resource.data.status == 'confirmada' && request.resource.data.status in ['completada','cancelada'])))
+          || (admin() && ((resource.data.status == 'pendiente' && request.resource.data.status in ['confirmada','cancelada'])
+                || (resource.data.status == 'confirmada' && request.resource.data.status in ['completada','cancelada']))));
+      allow delete: if false;
+    }
+
+    match /sessions/{id} {
+      allow create: if signedIn() && request.resource.data.userId == me()
+        && request.resource.data.keys().hasOnly(['userId','device','createdAt','lastSeen','active','revoked'])
+        && request.resource.data.keys().hasAll(['userId','device','createdAt','lastSeen','active','revoked'])
+        && request.resource.data.active == true && request.resource.data.revoked == false;
+      allow get, list: if signedIn() && resource.data.userId == me();
+      allow update: if signedIn() && resource.data.userId == me()
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active','revoked','lastSeen'])
+        && (resource.data.revoked == false || request.resource.data.revoked == true)
+        && (request.resource.data.revoked == false || request.resource.data.active == false);
+      allow delete: if false;
+    }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}
