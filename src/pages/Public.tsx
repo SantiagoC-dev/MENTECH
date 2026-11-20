@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowRight, Heart, BrainCircuit, CalendarDays, ShieldCheck, Search, Sparkles, HeartHandshake, MessageCircleHeart, ChevronRight, PhoneCall, Clock3, LockKeyhole, Check, X, AlertTriangle, BookHeart, CircleHelp, ArrowUpRight, Filter } from 'lucide-react';
+import { ArrowRight, Heart, BrainCircuit, CalendarDays, ShieldCheck, Search, HeartHandshake, MessageCircleHeart, ChevronRight, PhoneCall, Clock3, LockKeyhole, Check, X, AlertTriangle, BookHeart, CircleHelp, ArrowUpRight, Filter } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Avatar, Banner, SpecialistCard, useFeedback } from '../components/Shared';
 import { bookAppointment, watchProfessionals } from '../lib/repository';
@@ -15,7 +15,7 @@ export function Home(){
   const top=pros.slice(0,3);
   return <>
     <section className="hero-section"><div className="container hero-grid">
-      <div className="hero-copy"><span className="eyebrow"><Sparkles size={15}/> Un espacio para tu bienestar</span>
+      <div className="hero-copy">
         <h1>Cuidar de tu mente también es <em>cuidar de ti.</em></h1>
         <p>Encuentra acompañamiento profesional según lo que necesitas. Conectar con ayuda puede ser el primer paso.</p>
         <form className="hero-search" onSubmit={e=>{e.preventDefault();navigate('/especialistas?q='+encodeURIComponent(search));}}>
@@ -24,11 +24,11 @@ export function Home(){
         {error&&<Banner kind="error" message={error}/>}
         <div className="hero-proof"><span className="avatar-stack">{initialsDecor.map((x,i)=><span className={`stack-dot stack-${x.color}`} key={i}>{x.letter}</span>)}</span><span>Explora perfiles y elige a tu ritmo.<br/><strong>Proyecto escolar · sin consultas reales</strong></span></div>
       </div>
-      <div className="hero-art" aria-hidden="true"><div className="hero-big-circle"/><div className="hero-outline-circle"/><div className="hero-person"><div className="person-face"><div className="person-hair"/><div className="person-head"><span className="eyes">•　•</span><span className="smile">⌣</span></div><div className="person-neck"/></div><div className="person-body"/></div>
+      <div className="hero-art" aria-hidden="true"><div className="hero-scene"><div className="hero-big-circle"/><div className="hero-outline-circle"/><div className="hero-person"><div className="person-face"><div className="person-hair"/><div className="person-head"><span className="eyes">•　•</span><span className="smile">⌣</span></div><div className="person-neck"/></div><div className="person-body"/></div>
         <div className="floating-card floating-upper"><div className="float-icon"><Heart size={20} fill="currentColor"/></div><div><strong>Tu bienestar importa</strong><span>Un día a la vez ✨</span></div></div>
         <div className="floating-card floating-lower"><div className="float-icon green"><Check size={20}/></div><div><strong>Acompañamiento</strong><span>A tu propio ritmo</span></div></div>
         <div className="sparkle sparkle-one">✦</div><div className="sparkle sparkle-two">✦</div>
-      </div>
+      </div></div>
     </div></section>
     <section className="trust-strip"><div className="container trust-items"><span><HeartHandshake size={20}/> Tu espacio, tu ritmo</span><span><ShieldCheck size={20}/> Perfiles y permisos por rol</span><span><CalendarDays size={20}/> Solicitud de citas</span><span><LockKeyhole size={20}/> Acceso con autenticación</span></div></section>
     <section className="section container"><div className="section-heading"><div><span className="section-kicker">EMPIEZA POR AQUÍ</span><h2>¿Cómo podemos ayudarte?</h2><p>Selecciona un tema y descubre profesionales relacionados.</p></div></div>

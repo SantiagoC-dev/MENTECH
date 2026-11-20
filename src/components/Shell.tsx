@@ -11,7 +11,6 @@ export function Shell(){
   const nav=useNavigate();
   const close=()=>setMenu(false);
   return <div className="app-shell">
-    <div className="academic-bar"><span className="academic-dot"/> MENTECH · Proyecto académico · Autenticación y datos con Firebase</div>
     <header className="site-header"><div className="container header-inner">
       <Brand/>
       <button className="mobile-menu icon-button" onClick={()=>setMenu(!menu)} aria-label={menu?'Cerrar menú':'Abrir menú'}>{menu?<X size={23}/>:<Menu size={23}/>}</button>
